@@ -1,48 +1,60 @@
 const express = require('express');
 const RSSParser = require('rss-parser');
-const cors = require('cors');
+const express = require('express');
 const axios = require('axios');
+const cors = require('cors');
 
 const app = express();
 app.use(cors());
 
-const parser = new RSSParser();
-
+// This endpoint calls the WordPress REST API for your property posts.
+// The _embed parameter tells WordPress to include extra info like the featured image.
 app.get('/feed', async (req, res) => {
   try {
-    // URL of your original WordPress feed.
-    const originalFeedUrl = 'https://tenerife-belfin-property.com/property/feed/';
-    const { search } = req.query;
+    const search = req.query.search;
+    // Note: This URL assumes your custom post type "property" is available via the REST API.
+    // You can test it by visiting: https://tenerife-belfin-property.com/wp-json/wp/v2/property?_embed
+    const apiUrl = 'https://tenerife-belfin-property.com/wp-json/wp/v2/property?_embed';
+    const response = await axios.get(apiUrl);
+    let items = response.data;
 
-    // Get the feed data from the WordPress site.
-    const feedResponse = await axios.get(originalFeedUrl);
-    const feedData = await parser.parseString(feedResponse.data);
-
-    let items = feedData.items;
-
-    // If a search term is provided, filter the feed items by title or description.
+    // If a search term is provided, filter the items by title or excerpt.
     if (search) {
-      items = items.filter(item =>
-        item.title.toLowerCase().includes(search.toLowerCase()) ||
-        item.contentSnippet.toLowerCase().includes(search.toLowerCase())
-      );
+      items = items.filter(item => {
+        const title = item.title.rendered.toLowerCase();
+        const excerpt = item.excerpt.rendered.toLowerCase();
+        return title.includes(search.toLowerCase()) || excerpt.includes(search.toLowerCase());
+      });
     }
 
-    // Map each item to our desired format.
-    res.json(items.map(item => {
-      // Use the full content if available, or fall back to the shorter content.
-      const content = item['content:encoded'] || item.content || '';
-      // The regex looks for <img> tags and gets the URL from src or data-src (in case of lazy loading).
-      const images = [...content.matchAll(/<img[^>]+(?:src|data-src)=["']([^"']+)["'][^>]*>/gi)]
-                      .map(match => match[1]);
-      return {
-        title: item.title,
-        link: item.link,
-        description: item.contentSnippet,
-        images: images // This will be an array of image URLs.
-      };
-    }));
+    const results = items.map(item => {
+      // First, try to get the featured image from the embedded data.
+      let images = [];
+      if (
+        item._embedded &&
+        item._embedded['wp:featuredmedia'] &&
+        item._embedded['wp:featuredmedia'][0]
+      ) {
+        images.push(item._embedded['wp:featuredmedia'][0].source_url);
+      }
+      
+      // Then, also look for additional images in the content (if any)
+      const content = item.content.rendered;
+      const regex = /<img[^>]+(?:src|data-src)=["']([^"']+)["'][^>]*>/gi;
+      const additionalImages = [...content.matchAll(regex)].map(match => match[1]);
+      images = images.concat(additionalImages);
+      // Remove duplicate image URLs.
+      images = [...new Set(images)];
 
+      return {
+        title: item.title.rendered,
+        link: item.link,
+        description: item.excerpt.rendered, // Use excerpt; you can change to item.content.rendered if you wish.
+        images: images
+      };
+    });
+
+    res.json(results);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
