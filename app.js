@@ -1,11 +1,5 @@
 const express = require('express');
 const RSSParser = require('rss-parser');
-const RSS = require('rss');
-const cors = require('cors');
-const axios = require('axios');
-
-const express = require('express');
-const RSSParser = require('rss-parser');
 const cors = require('cors');
 const axios = require('axios');
 
@@ -46,3 +40,4 @@ app.get('/feed', async (req, res) => {
 app.listen(3000, () => {
   console.log('Middleware API running on port 3000.');
 });
+
