@@ -26,12 +26,12 @@ app.get('/feed', async (req, res) => {
     }
 
     res.json(items.map(item => {
-      const imageUrls = [...item.content.matchAll(/<img[^>]+src="?([^"\s]+)"?[^>]*\/>/gi)].map(m => m[1]);
+      const images = [...item.content.matchAll(/<img[^>]+src="?([^"\s]+)"?[^>]*\/>/gi)].map(match => match[1]);
       return {
         title: item.title,
         link: item.link,
         description: item.contentSnippet,
-        images: imageUrls
+        images: images // This must be "images" as an array.
       };
     }));
 
@@ -41,7 +41,5 @@ app.get('/feed', async (req, res) => {
 });
 
 app.listen(3000, () => {
-  console.log('Enhanced Middleware running on port 3000.');
+  console.log('Middleware API running on port 3000.');
 });
-
-
